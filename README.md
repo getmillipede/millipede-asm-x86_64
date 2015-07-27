@@ -4,6 +4,11 @@
 
 Print a beautiful millipede
 
+This code is compiled with nasm, and the resulting binary can then be executed
+without modification under OpenBSD, FreeBSD, and Linux.
+
+It also implements the -a switch that animates the millipede !
+
 ## Support
 
 * [Stack Overflow](http://stackoverflow.com/questions/tagged/millipede)
