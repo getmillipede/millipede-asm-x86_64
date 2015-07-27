@@ -83,11 +83,38 @@ code_start:
 exit:
 	mov rax, 1
 	mov r15, 60
-	cmp qword [rel ostype], 2
+	cmp byte [rel ostype], 2
 	cmove rax, r15
 	syscall
 ret
 
+;;; nanosleep
+;;; in : none
+;;; out: none
+nanosleep:
+	push r9
+	push r10
+	xor rsi, rsi
+	mov rdi, timeout
+	mov rax, 91
+	mov r15, 35
+	cmp byte [rel ostype], 2
+	cmove rax, r15
+	syscall
+	cmp rax, 0
+	je .end
+	cmp byte [rel ostype], 2
+	je .end
+	;; try FreeBSD syscall, if the OpenBSD is not implemented
+	xor rsi, rsi
+	mov rdi, timeout
+        mov rax, 240
+	syscall
+.end:
+	pop r10
+	pop r9
+ret
+	
 ;;; strlen
 ;;; in : rdi - pointer to string
 ;;; out: rax - len
@@ -112,7 +139,7 @@ write:
 	mov rdx, rax
         mov rax, 4
 	mov r15, 1
-	cmp qword [rel ostype], 2
+	cmp byte [rel ostype], 2
 	cmove rax, r15
 	mov rdi, 1		; stdout
 	syscall
@@ -203,15 +230,22 @@ arg_parse:
 	je .set_reverse
 	cmp byte [r9 + 1], 's'
 	je .check_size
+	cmp byte [r9 + 1], 'a'
+	je .set_animate
 .argerr:
 	mov rsi, arg_error
 	call write
 	mov rdi, 1
 	call exit
+.set_animate:
+	cmp byte [r9 + 2], 0
+	jne .argerr
+	or byte [rel mode], 2
+	jmp .next
 .set_reverse:
 	cmp byte [r9 + 2], 0
 	jne .argerr
-	mov qword [rel mode], 1
+	or byte [rel mode], 1
 	jmp .next
 .check_size:
 	cmp byte [r9 + 2], 0
@@ -224,7 +258,7 @@ arg_parse:
 	call tonum
 	cmp rax, 0
 	je .argerr
-	mov [rel size], rax
+	mov [rel size], ax
 	jmp .next
 .end:
 ret
@@ -246,11 +280,13 @@ ret
 ;;; in : none
 ;;; out: none
 millipede:
-	mov r8, [rel size]
+	xor r8, r8
+	mov r8w, [rel size]
 	mov r9, 3		; start offset
 	mov r10, -1		; offset direction
-	cmp qword [rel mode], 1
-	je .start
+.restart:
+	test byte [rel mode], 1
+	jne .start
 	cmp qword [rel text], 0
 	je .next3
 	mov rsi, [rel text]
@@ -286,8 +322,8 @@ millipede:
 	mov r9, 3
 	jmp .start
 .endloop:
-	cmp qword [rel mode], 1
-	jne .end
+	test byte [rel mode], 1
+	je .end
 	mov rcx, r9
 	add rcx, 2
 	call spaces
@@ -302,6 +338,17 @@ millipede:
 	mov rsi, milli_nl
 	call write
 .end:
+	test byte [rel mode], 2
+	je .ret
+	mov qword [rel timeout], 0
+	mov dword [rel timeout + 8], 100000000
+	call nanosleep
+	mov rsi, milli_clear
+	call write
+	xor r8, r8
+	mov r8w, [rel size]
+	jmp .restart
+.ret:
 ret
 
 ;;; milli_gen
@@ -314,8 +361,8 @@ milli_gen:
 	mov rsi, ro_milli_body
 	mov rdi, milli_body
 	call strcpy
-	cmp qword [rel mode], 1
-	jne .end
+	test byte [rel mode], 1
+	je .end
 	;; mode is reverse we have to invert mandible and legs
 	mov byte [rel milli_head + 2], 0x94
 	mov byte [rel milli_head + 12], 0x97
@@ -331,10 +378,10 @@ _start:
 	jne bsd
 	cmp rdi, 0
 	jne bsd
-	mov qword [rel ostype], 2
+	mov byte [rel ostype], 2
 	jmp start
 bsd:
-	mov qword [rel ostype], 1
+	mov byte [rel ostype], 1
 start:
 	;; save argc
 	mov rax, [rsp]
@@ -345,8 +392,8 @@ start:
 	mov [rel argv], rax
 
 	;; set defaults
-	mov qword [rel size], 20
-	mov qword [rel mode], 0
+	mov word [rel size], 20
+	mov byte [rel mode], 0
 	mov qword [rel text], 0
 
 	;; check if we have arguments
@@ -370,6 +417,8 @@ milli_nl:
 	db 0xa, 0
 milli_space:
 	db 0x20, 0
+milli_clear:
+	db 0x1b, '[', '2', 'J', 0x1b, '[', ';', 'H', 0
 ro_milli_head:
 	db 0xe2, 0x95, 0x9a	; open mandible
 	db 0xe2, 0x8a, 0x99	; eye
@@ -392,7 +441,7 @@ ro_milli_body:
 	db 0xa			; \n
 	db 0			; \0
 ro_milli_body_end:
-
+	
 arg_error:
 	db 'argument parse error', 0xa, 0
 	
@@ -408,15 +457,16 @@ section .bss
 align 4096
 bss_start:
 
-ostype:		resq 1
+ostype:		resb 1
 argc:		resq 1
 argv:		resq 1
-size:		resq 1
-mode:		resq 1
+size:		resw 1
+mode:		resb 1
 text:		resq 1
 milli_head:	resb ro_milli_head_end - ro_milli_head
 milli_body:	resb ro_milli_body_end - ro_milli_body
-
+timeout:	resq 2
+	
 ;;;
 ;;; END of BSS section
 ;;;
