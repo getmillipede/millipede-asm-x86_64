@@ -83,7 +83,7 @@ code_start:
 exit:
 	mov rax, 1
 	mov r15, 60
-	cmp byte [rel ostype], 2
+	cmp byte [rel ostype], 3
 	cmove rax, r15
 	syscall
 ret
@@ -97,18 +97,12 @@ nanosleep:
 	xor rsi, rsi
 	mov rdi, timeout
 	mov rax, 91
-	mov r15, 35
+	mov r15, 240
 	cmp byte [rel ostype], 2
 	cmove rax, r15
-	syscall
-	cmp rax, 0
-	je .end
-	cmp byte [rel ostype], 2
-	je .end
-	;; try FreeBSD syscall, if the OpenBSD is not implemented
-	xor rsi, rsi
-	mov rdi, timeout
-        mov rax, 240
+	mov r15, 35
+	cmp byte [rel ostype], 3
+	cmove rax, r15
 	syscall
 .end:
 	pop r10
@@ -139,7 +133,7 @@ write:
 	mov rdx, rax
         mov rax, 4
 	mov r15, 1
-	cmp byte [rel ostype], 2
+	cmp byte [rel ostype], 3
 	cmove rax, r15
 	mov rdi, 1		; stdout
 	syscall
@@ -375,14 +369,24 @@ ret
 _start:
 	;; try to detect if we run under linux
 	cmp rcx, 0
-	jne bsd
+	jne openbsd
 	cmp rdi, 0
-	jne bsd
+	jne freebsd
+	mov byte [rel ostype], 3
+	jmp get_arg
+freebsd:
 	mov byte [rel ostype], 2
+	;; save argc
+	mov rax, [rdi]
+	mov [rel argc], rax
+	;; save argv
+	mov rax, rdi
+	add rax, 16
+	mov [rel argv], rax
 	jmp start
-bsd:
+openbsd:
 	mov byte [rel ostype], 1
-start:
+get_arg:
 	;; save argc
 	mov rax, [rsp]
 	mov [rel argc], rax
@@ -391,6 +395,7 @@ start:
 	add rax, 16
 	mov [rel argv], rax
 
+start:
 	;; set defaults
 	mov word [rel size], 20
 	mov byte [rel mode], 0
