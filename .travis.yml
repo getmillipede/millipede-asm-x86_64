@@ -1,0 +1,15 @@
+language: c
+
+sudo: false
+
+addons:
+  apt:
+    packages:
+      - nasm
+
+before_install:
+  - nasm -v
+
+script:
+  - make
+  - ./millipede
