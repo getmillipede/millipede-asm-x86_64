@@ -9,13 +9,7 @@ elf_hdr:
 	.class db 0x02		                  ; class ELF64
 	.data  db 0x01		                  ; little endian
 	.vers  db 0x01		                  ; file version
-%ifdef _OS_OpenBSD
-	.binty db 0x00				  ; bin type
-%elifdef _OS_FreeBSD
 	.binty db 0x09				  ; bin type
-%elifdef _OS_Linux
-	.binty db 0x00		                  ; bin type
-%endif
 	.zero  db 0,0,0,0,0,0,0,0                 ; zerooooooooooo
 	.type  dw 0x0002	                  ; ELF EXEC
 	.mach  dw 0x003e	                  ; AMD x86_64
@@ -54,7 +48,6 @@ prog_idx1:
 	.flsz  dq 0				  ; size in file
 	.memsz dq bss_end - bss_start		  ; size in mem
 	.align dq 0x0000000000001000		  ; alignment
-%ifdef _OS_OpenBSD
 prog_idx2:
 	.type  dd 0x00000004	                  ; type NOTE
 	.flags dd 0x00000004			  ; R
@@ -64,13 +57,11 @@ prog_idx2:
 	.flsz  dq _note_open_end - _note_open	  ; size in file
 	.memsz dq _note_open_end - _note_open	  ; size in mem
 	.align dq 0x0000000000000002		  ; alignment
-%endif
 prog_hdr_end:
 
 ;;;
 ;;; NOTE SECTION for OpenBSD
 ;;;
-%ifdef _OS_OpenBSD
 align 2
 _note_open:
 	dd 0x00000008
@@ -79,27 +70,21 @@ _note_open:
 	db 'O', 'p', 'e', 'n', 'B', 'S', 'D', 0
 	dd 0
 _note_open_end:
-%endif
 
 ;;;
 ;;; CODE section
 ;;; 
-align 0x10
+align 16
 code_start:
 
 ;;; exit
 ;;; in : rdi - exit code
 ;;; out: none
 exit:
-%ifdef _OS_OpenBSD
 	mov rax, 1
-%elifdef _OS_FreeBSD
-        mov rax, 1
-%elifdef _OS_Linux
-	mov rax, 60
-%else
-	%error Unknown OS
-%endif
+	mov r15, 60
+	cmp qword [rel ostype], 2
+	cmove rax, r15
 	syscall
 ret
 
@@ -125,15 +110,10 @@ write:
 	mov rdi, rsi
 	call strlen
 	mov rdx, rax
-%ifdef _OS_OpenBSD
-	mov rax, 4		; write
-%elifdef _OS_FreeBSD
         mov rax, 4
-%elifdef _OS_Linux
-	mov rax, 1
-%else
-	%error Unknown OS
-%endif
+	mov r15, 1
+	cmp qword [rel ostype], 2
+	cmove rax, r15
 	mov rdi, 1		; stdout
 	syscall
 	pop r10
@@ -346,6 +326,16 @@ ret
 	
 ;;; our entry point
 _start:
+	;; try to detect if we run under linux
+	cmp rcx, 0
+	jne bsd
+	cmp rdi, 0
+	jne bsd
+	mov qword [rel ostype], 2
+	jmp start
+bsd:
+	mov qword [rel ostype], 1
+start:
 	;; save argc
 	mov rax, [rsp]
 	mov [rel argc], rax
@@ -415,9 +405,10 @@ code_end:
 ;;; BSS section
 ;;;
 section .bss
-align 0x1000
+align 4096
 bss_start:
-	
+
+ostype:		resq 1
 argc:		resq 1
 argv:		resq 1
 size:		resq 1

@@ -2,7 +2,7 @@ NAME=millipede
 SRC=main.s
 
 AS=nasm
-ASFLAGS=-f bin -D _OS_`uname`
+ASFLAGS=-f bin
 RM=rm -fr
 CHMOD=chmod +x
 
