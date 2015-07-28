@@ -57,15 +57,6 @@ prog_idx2:
 	.flsz  dq _note_open_end - _note_open	  ; size in file
 	.memsz dq _note_open_end - _note_open	  ; size in mem
 	.align dq 0x0000000000000002		  ; alignment
-prog_idx3:
-	.type  dd 0x00000004	                  ; type NOTE
-	.flags dd 0x00000004			  ; R
-	.offs  dq _note_net - $$		  ; offset from file start
-	.vaddr dq _note_net			  ; link addr
-	.paddr dq 0				  ; reserved
-	.flsz  dq _note_net_end - _note_net	  ; size in file
-	.memsz dq _note_net_end - _note_net	  ; size in mem
-	.align dq 0x0000000000000002		  ; alignment
 prog_hdr_end:
 
 ;;;
@@ -79,18 +70,6 @@ _note_open:
 	db 'O', 'p', 'e', 'n', 'B', 'S', 'D', 0
 	dd 0
 _note_open_end:
-
-;;;
-;;; NOTE SECTION for NetBSD
-;;;
-align 2
-_note_net:
-	dd 0x00000007
-	dd 0x00000004
-	dd 0x00000001
-	db 'N', 'e', 't', 'B', 'S', 'D', 0, 0
-	dd 200000000
-_note_net_end:
 
 ;;;
 ;;; CODE section
